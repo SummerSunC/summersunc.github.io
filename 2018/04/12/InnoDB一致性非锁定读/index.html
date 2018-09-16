@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=6.4.1" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.ico?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.ico?v=6.4.1">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.4.1" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.4.1',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="一致性读(consistend read)一致性读(consistend read)指的是InnoDB使用多版本查询数据库在某个时间点的快照。此查询可以看到该时间点之前提交的事务所做的更改并且不会被之后的修改或者未提交事务所影响。但是对于同一事务中的较早语句的修改则不适用此规则,这种情况会产生以下异常：如果你更新表中的某些行，一次SELECT可能看到更新行的最新版本也可能看到任一行的旧版本；如果其">
+<meta name="keywords" content="mysql">
+<meta property="og:type" content="article">
+<meta property="og:title" content="InnoDB一致性非锁定读(Consistent Nonlocking Reads)">
+<meta property="og:url" content="http://blog.sunwaiting.com/2018/04/12/InnoDB一致性非锁定读/index.html">
+<meta property="og:site_name" content="孙成酱子说">
+<meta property="og:description" content="一致性读(consistend read)一致性读(consistend read)指的是InnoDB使用多版本查询数据库在某个时间点的快照。此查询可以看到该时间点之前提交的事务所做的更改并且不会被之后的修改或者未提交事务所影响。但是对于同一事务中的较早语句的修改则不适用此规则,这种情况会产生以下异常：如果你更新表中的某些行，一次SELECT可能看到更新行的最新版本也可能看到任一行的旧版本；如果其">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2018-04-13T05:44:03.828Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="InnoDB一致性非锁定读(Consistent Nonlocking Reads)">
+<meta name="twitter:description" content="一致性读(consistend read)一致性读(consistend read)指的是InnoDB使用多版本查询数据库在某个时间点的快照。此查询可以看到该时间点之前提交的事务所做的更改并且不会被之后的修改或者未提交事务所影响。但是对于同一事务中的较早语句的修改则不适用此规则,这种情况会产生以下异常：如果你更新表中的某些行，一次SELECT可能看到更新行的最新版本也可能看到任一行的旧版本；如果其">
+
+
+
+
+
+
+  <link rel="canonical" href="http://blog.sunwaiting.com/2018/04/12/InnoDB一致性非锁定读/"/>
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>InnoDB一致性非锁定读(Consistent Nonlocking Reads) | 孙成酱子说</title>
+  
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">孙成酱子说</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <h1 class="site-subtitle" itemprop="description">实践检验真知</h1>
+      
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br />首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-about">
+    <a href="/about/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-user"></i> <br />关于</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/04/12/InnoDB一致性非锁定读/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="孙成">
+      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="孙成酱子说">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">InnoDB一致性非锁定读(Consistent Nonlocking Reads)
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-04-12 16:04:49" itemprop="dateCreated datePublished" datetime="2018-04-12T16:04:49+08:00">2018-04-12</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2018-04-13 13:44:03" itemprop="dateModified" datetime="2018-04-13T13:44:03+08:00">2018-04-13</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
+
+                
+                
+                  ，
+                
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/数据库/" itemprop="url" rel="index"><span itemprop="name">数据库</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="一致性读-consistend-read"><a href="#一致性读-consistend-read" class="headerlink" title="一致性读(consistend read)"></a>一致性读(consistend read)</h2><p>一致性读(consistend read)指的是InnoDB使用多版本查询数据库在某个时间点的快照。此查询可以看到该时间点之前提交的事务所做的更改并且不会被之后的修改或者未提交事务所影响。但是对于同一事务中的较早语句的修改则不适用此规则,这种情况会产生以下异常：如果你更新表中的某些行，一次SELECT可能看到更新行的最新版本也可能看到任一行的旧版本；如果其它会话同时更新到同一个表，则可能会看到该表处于数据库中从未存在过的状态。</p>
+<h2 id="多版本并发控制"><a href="#多版本并发控制" class="headerlink" title="多版本并发控制"></a>多版本并发控制</h2><ul>
+<li>当事务隔离级别为REPEATABLE READ时，同一个事务中的一致性读都是读取的是该事务下第一次查询所建立的快照。<blockquote>
+<p>我们可以通过</p>
+</blockquote>
+</li>
+<li>当事务隔离级别为READ COMMITTED时，同一事务下的一致性读都会建立和读取此查询自己的最新的快照</li>
+</ul>
+<p>一致性读是InnoDB在REPEATABLE READ和READ COMMITTED事务隔离中处理SELECT语句的默认模式。一致性读不会在表上设置任何锁，所以其它会话可以对表进行读写操作。</p>
+<blockquote>
+<p>数据库状态的快照适用于事务中的SELECT语句，而不一定适用于DML语句。如果执行INSERT或者UPDATE某些行然后提交该事务，则从另一个并发REPEATABLE READ事务发出的DELETE或UPDATE语句则会影响那些刚刚提交的数据行。下面这个示例展示了这种场景：</p>
+</blockquote>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">             Session A                              Session B</span><br><span class="line"></span><br><span class="line">           begin;                                   begin;</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">           SELECT * FROM t;                        SELECT * FROM t;</span><br><span class="line">           &gt; empty set                             &gt; empty set</span><br><span class="line">          </span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">                                                   INSERT INTO t (id) VALUES (1);</span><br><span class="line">                                                    &gt; 1 row affected</span><br><span class="line">          </span><br><span class="line">                                                    SELECT * FROM t;</span><br><span class="line">                                                    -----------</span><br><span class="line">                                                    |   id    |</span><br><span class="line">                                                    -----------</span><br><span class="line">                                                    |    1    |</span><br><span class="line">                                                    -----------</span><br><span class="line">-------------------------------------------------------------------------------------            </span><br><span class="line">           SELECT * FROM t;         </span><br><span class="line">           &gt; empty set</span><br><span class="line">-------------------------------------------------------------------------------------                                                    </span><br><span class="line">                                                    COMMIT;</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">           SELECT * FROM t;</span><br><span class="line">           &gt; empty set</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line"></span><br><span class="line">           DELETE FROM t WAERE id = 1;</span><br><span class="line">           &gt; 1 row affected</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">                                                    SELECT * FROM t;</span><br><span class="line">                                                    -----------</span><br><span class="line">                                                    |   id    |</span><br><span class="line">                                                    -----------</span><br><span class="line">                                                    |    1    |</span><br><span class="line">                                                    -----------</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">           COMMIT;</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">                                                    SELECT * FROM t;</span><br><span class="line">                                                    &gt; empty set</span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">           SELECT * FROM t;</span><br><span class="line">           -----------</span><br><span class="line">           |   id    |</span><br><span class="line">           -----------</span><br><span class="line">           |    1    |</span><br><span class="line">           -----------</span><br><span class="line">-------------------------------------------------------------------------------------</span><br></pre></td></tr></table></figure>
+<p>一致的读取不适用于某些DDL语句</p>
+<ul>
+<li>一致性读不适用于DROP TABLE,因为表已经被InnoDB销毁了</li>
+<li>一致性读不适用于ALTER TABLE,因为ALTER TABLE实际是生成一张原始表的临时表，并在构建完成后删除原始表。在事务中进行一致的读取时，新表中的行不可见，这种情况下事务会返回 ER_TABLE_DEF_CHANGED错误（表定义已更改，请重试事务）</li>
+</ul>
+<p>在没有指定FOR UPDATE或者LOCK IN SHARE MODE的情况下INSERT INTO … SELECT，UPDATE …（SELECT）和CREATE TABLE …等语句中的的读取会有以下差异：</p>
+<ul>
+<li>默认情况下,就像READ COMMITTED一样，即使在同一事务中，每个一致性读都会建立和读取自己的快照</li>
+<li>如果将innodb_locks_unsafe_for_binlog设置为了enable并且事务隔离级别不是SERIALIZABLE,则读操作不会再行上加锁</li>
+</ul>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/wx_qrcode.jpg" alt="孙成 wechat" style="width: 200px; max-width: 100%;"/>
+    <div>扫一扫关注我的个人公众号</div>
+</div>
+
+      </div>
+    
+
+    
+      <div>
+        <div style="padding: 10px 0; margin: 20px auto; width: 90%; text-align: center;">
+  <div>赞助一波👍</div>
+  <button id="rewardButton" disable="enable" onclick="var qr = document.getElementById('QR'); if (qr.style.display === 'none') {qr.style.display='block';} else {qr.style.display='none'}">
+    <span>打赏</span>
+  </button>
+  <div id="QR" style="display: none;">
+
+    
+      <div id="wechat" style="display: inline-block">
+        <img id="wechat_qr" src="/images/wechatpay.png" alt="孙成 微信支付"/>
+        <p>微信支付</p>
+      </div>
+    
+
+    
+      <div id="alipay" style="display: inline-block">
+        <img id="alipay_qr" src="/images/alipay.png" alt="孙成 支付宝"/>
+        <p>支付宝</p>
+      </div>
+    
+
+    
+
+  </div>
+</div>
+
+      </div>
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/mysql/" rel="tag"># mysql</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/02/24/复杂系统性能分析的方法/" rel="next" title="复杂系统性能分析的方法">
+                <i class="fa fa-chevron-left"></i> 复杂系统性能分析的方法
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/04/13/InnoDB中的锁/" rel="prev" title="InnoDB中的锁">
+                InnoDB中的锁 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+    <div class="comments" id="comments">
+      <div id="lv-container" data-id="city" data-uid="EasonSunC"></div>
+    </div>
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">孙成</p>
+              <p class="site-description motion-element" itemprop="description">孙成的杂书馆，聊聊技术，谈谈生活</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">17</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">12</span>
+                    <span class="site-state-item-name">分类</span>
+                  
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">标签</span>
+                  
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/SummerSunC" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="mailto:suncheng516@gmail.com" target="_blank" title="E-Mail" rel="external nofollow"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.jianshu.com/u/5de5d96d74ed" target="_blank" title="简书" rel="external nofollow"><i class="fa fa-fw fa-heartbeat"></i>简书</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://juejin.im/user/5a72821c6fb9a01cb42cb087" target="_blank" title="掘金" rel="external nofollow"><i class="fa fa-fw fa-spinner"></i>掘金</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一致性读-consistend-read"><span class="nav-number">1.</span> <span class="nav-text">一致性读(consistend read)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#多版本并发控制"><span class="nav-number">2.</span> <span class="nav-text">多版本并发控制</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2018</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">孙成</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.7.1</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a></div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/three.min.js"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/canvas_lines.min.js"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.4.1"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.4.1"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.4.1"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.4.1"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.4.1"></script>
+
+
+
+  
+
+
+
+  
+    <script type="text/javascript">
+      window.livereOptions = {
+        refer: '2018/04/12/InnoDB一致性非锁定读/'
+      };
+      (function(d, s) {
+        var j, e = d.getElementsByTagName(s)[0];
+        if (typeof LivereTower === 'function') { return; }
+        j = d.createElement(s);
+        j.src = 'https://cdn-city.livere.com/js/embed.dist.js';
+        j.async = true;
+        e.parentNode.insertBefore(j, e);
+      })(document, 'script');
+    </script>
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=6.4.1" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.ico?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.ico?v=6.4.1">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.4.1" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.4.1',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="zookeeper官网zookeeper源码地址  简介在做分布式系统时，我们常常需要维护管理集群的配置信息、服务的注册发现、共享锁等功能，而ZooKeeper正是解决这些问题的一把好手。ZAB(ZooKeeper Atomic Broadcast)则是为ZooKeeper设计的一种支持崩溃恢复的原子广播协议。 在看ZAB之前我们先复习一下两阶段提交协议 两阶段提交 两阶段提交顾名思">
+<meta name="keywords" content="中间件,Zookeeper,分布式">
+<meta property="og:type" content="article">
+<meta property="og:title" content="聊聊zookeeper的ZAB算法">
+<meta property="og:url" content="http://blog.sunwaiting.com/2018/08/26/聊聊zookeeper的ZAB算法/index.html">
+<meta property="og:site_name" content="孙成酱子说">
+<meta property="og:description" content="zookeeper官网zookeeper源码地址  简介在做分布式系统时，我们常常需要维护管理集群的配置信息、服务的注册发现、共享锁等功能，而ZooKeeper正是解决这些问题的一把好手。ZAB(ZooKeeper Atomic Broadcast)则是为ZooKeeper设计的一种支持崩溃恢复的原子广播协议。 在看ZAB之前我们先复习一下两阶段提交协议 两阶段提交 两阶段提交顾名思">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://onoad5uf7.bkt.clouddn.com/zookeeper-head.jpg">
+<meta property="og:updated_time" content="2018-08-28T03:09:00.397Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="聊聊zookeeper的ZAB算法">
+<meta name="twitter:description" content="zookeeper官网zookeeper源码地址  简介在做分布式系统时，我们常常需要维护管理集群的配置信息、服务的注册发现、共享锁等功能，而ZooKeeper正是解决这些问题的一把好手。ZAB(ZooKeeper Atomic Broadcast)则是为ZooKeeper设计的一种支持崩溃恢复的原子广播协议。 在看ZAB之前我们先复习一下两阶段提交协议 两阶段提交 两阶段提交顾名思">
+<meta name="twitter:image" content="http://onoad5uf7.bkt.clouddn.com/zookeeper-head.jpg">
+
+
+
+
+
+
+  <link rel="canonical" href="http://blog.sunwaiting.com/2018/08/26/聊聊zookeeper的ZAB算法/"/>
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>聊聊zookeeper的ZAB算法 | 孙成酱子说</title>
+  
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">孙成酱子说</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <h1 class="site-subtitle" itemprop="description">实践检验真知</h1>
+      
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br />首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-about">
+    <a href="/about/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-user"></i> <br />关于</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/08/26/聊聊zookeeper的ZAB算法/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="孙成">
+      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="孙成酱子说">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">聊聊zookeeper的ZAB算法
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-08-26 10:33:45" itemprop="dateCreated datePublished" datetime="2018-08-26T10:33:45+08:00">2018-08-26</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2018-08-28 11:09:00" itemprop="dateModified" datetime="2018-08-28T11:09:00+08:00">2018-08-28</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
+
+                
+                
+                  ，
+                
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/分布式/" itemprop="url" rel="index"><span itemprop="name">分布式</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+        <div class="post-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+          
+          
+            <div class="post-gallery-row">
+              <a class="post-gallery-img fancybox"
+                 href="http://onoad5uf7.bkt.clouddn.com/zookeeper-head.jpg" rel="gallery_cjm4dttkq000zr5jelf6h3c1v"
+                 itemscope itemtype="http://schema.org/ImageObject" itemprop="url">
+                <img src="http://onoad5uf7.bkt.clouddn.com/zookeeper-head.jpg" itemprop="contentUrl"/>
+              </a>
+            
+          
+
+          
+          </div>
+        </div>
+      
+
+      
+        <blockquote>
+<p><a href="https://zookeeper.apache.org/" target="_blank" rel="noopener">zookeeper官网</a><br><a href="https://github.com/apache/zookeeper" target="_blank" rel="noopener">zookeeper源码地址</a></p>
+</blockquote>
+<h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>在做分布式系统时，我们常常需要维护管理集群的配置信息、服务的注册发现、共享锁等功能，而ZooKeeper正是解决这些问题的一把好手。ZAB(ZooKeeper Atomic Broadcast)则是为ZooKeeper设计的一种支持崩溃恢复的原子广播协议。</p>
+<p>在看ZAB之前我们先复习一下两阶段提交协议</p>
+<h2 id="两阶段提交"><a href="#两阶段提交" class="headerlink" title="两阶段提交"></a>两阶段提交</h2><p><img src="http://onoad5uf7.bkt.clouddn.com/2PC_0.png" alt="2PC"></p>
+<p>两阶段提交顾名思义主要分为两个阶段</p>
+<h3 id="第一阶段（请求阶段）"><a href="#第一阶段（请求阶段）" class="headerlink" title="第一阶段（请求阶段）"></a>第一阶段（请求阶段）</h3><p>协调者首先会发送某个事务的执行请求给其它所有的参与者，当参与者收到perpare请求时会检查自身并告诉协调者自己的决策是同意还是取消</p>
+<h3 id="第二阶段（提交阶段）"><a href="#第二阶段（提交阶段）" class="headerlink" title="第二阶段（提交阶段）"></a>第二阶段（提交阶段）</h3><p>协调者将根据第一阶段的投票结果发送提交或回滚请求（一般是所有参与者都返回同意就发送提交请求，否则发送回滚请求）。</p>
+<blockquote>
+<p>当然两阶段提交协议并不完美，而且存在数据不一致、同步阻塞、单点等问题，这里不在本文的讨论范围</p>
+</blockquote>
+<h2 id="协议介绍"><a href="#协议介绍" class="headerlink" title="协议介绍"></a>协议介绍</h2><p>好了，复习完两阶段提交协议，接下来我们继续来分析ZAB协议。</p>
+<p>很多人会误以为ZAB协议是Paxos的一种特殊实现，事实上他们是两种不同的协议。ZAB和Paxos最大的不同是，ZAB主要是为分布式主备系统设计的，而Paxos的实现是一致性状态机(state machine replication)</p>
+<p>尽管ZAB不是Paxos的实现，但是ZAB也参考了一些Paxos的一些设计思想，比如：</p>
+<ul>
+<li>leader向follows提出提案(proposal)</li>
+<li>leader 需要在达到法定数量(半数以上)的follows确认之后才会进行commit</li>
+<li>每一个proposal都有一个纪元(epoch)号，类似于Paxos中的选票(ballot)</li>
+</ul>
+<h3 id="ZAB特性"><a href="#ZAB特性" class="headerlink" title="ZAB特性"></a>ZAB特性</h3><ol>
+<li>一致性保证 <ol>
+<li>可靠提交(Reliable delivery) -如果一个事务 A 被一个server提交(committed)了，那么它最终一定会被所有的server提交</li>
+<li>全局有序(Total order) - 假设有A、B两个事务，有一台server先执行A再执行B，那么可以保证所有server上A始终都被在B之前执行</li>
+<li>因果有序(Causal order) - 如果发送者在事务A提交之后再发送B,那么B必将在A之前执行</li>
+</ol>
+</li>
+<li>只要大多数（法定数量）节点启动，系统就行正常运行</li>
+<li>当节点下线后重启，它必须保证能恢复到当前正在执行的事务</li>
+</ol>
+<h3 id="ZAB的具体实现"><a href="#ZAB的具体实现" class="headerlink" title="ZAB的具体实现"></a>ZAB的具体实现</h3><ul>
+<li>ZooKeeper由client、server两部分构成</li>
+<li>client可以在任何一个server节点上进行读操作</li>
+<li>client可以在任何一个server节点上发起写请求，非leader节点会把此次写请求转发到leader节点上。由leader节点执行</li>
+<li>ZooKeeper使用改编的两阶段提交协议来保证server节点的事务一致性</li>
+</ul>
+<h4 id="ZXID"><a href="#ZXID" class="headerlink" title="ZXID"></a>ZXID</h4><p><img src="http://onoad5uf7.bkt.clouddn.com/ZXID.png" alt="ZXID"></p>
+<p>ZooKeeper会为每一个事务生成一个唯一且递增长度为64位的ZXID,ZXID由两部分组成：低32位表示计数器(counter)和高32位的纪元号(epoch)。epoch为当前leader在成为leader的时候生成的，且保证会比前一个leader的epoch大</p>
+<blockquote>
+<p>实际上当新的leader选举成功后，会拿到当前集群中最大的一个ZXID，并去除这个ZXID的epoch,并将此epoch进行加1操作，作为自己的epoch。</p>
+</blockquote>
+<h4 id="历史队列-history-queue"><a href="#历史队列-history-queue" class="headerlink" title="历史队列(history queue)"></a>历史队列(history queue)</h4><p>每一个follower节点都会有一个先进先出（FIFO)的队列用来存放收到的事务请求，保证执行事务的顺序</p>
+<blockquote>
+<p>可靠提交由ZAB的事务一致性协议保证<br>全局有序由TCP协议保证<br>因果有序由follower的历史队列(history queue)保证</p>
+</blockquote>
+<h2 id="ZAB工作模式"><a href="#ZAB工作模式" class="headerlink" title="ZAB工作模式"></a>ZAB工作模式</h2><ul>
+<li>广播(broadcast)模式</li>
+<li>恢复(recovery)模式</li>
+</ul>
+<h3 id="广播-broadcast-模式"><a href="#广播-broadcast-模式" class="headerlink" title="广播(broadcast)模式"></a>广播(broadcast)模式</h3><p><img src="http://onoad5uf7.bkt.clouddn.com/zab_broadcast.png" alt="ZAB广播"></p>
+<ol>
+<li>leader从客户端收到一个写请求</li>
+<li>leader生成一个新的事务并为这个事务生成一个唯一的ZXID，</li>
+<li>leader将这个事务发送给所有的follows节点 </li>
+<li>follower节点将收到的事务请求加入到历史队列(history queue)中,并发送ack给ack给leader</li>
+<li>当leader收到大多数follower（超过法定数量）的ack消息，leader会发送commit请求</li>
+<li>当follower收到commit请求时，会判断该事务的ZXID是不是比历史队列中的任何事务的ZXID都小，如果是则提交，如果不是则等待比它更小的事务的commit</li>
+</ol>
+<p><img src="http://onoad5uf7.bkt.clouddn.com/zab_commit_1.png" alt="zab commit流程"></p>
+<h3 id="恢复模式"><a href="#恢复模式" class="headerlink" title="恢复模式"></a>恢复模式</h3><p>恢复模式大致可以分为四个阶段</p>
+<ul>
+<li>选举</li>
+<li>发现</li>
+<li>同步</li>
+<li>广播</li>
+</ul>
+<ol>
+<li>当leader崩溃后，集群进入选举阶段，开始选举出潜在的新leader(一般为集群中拥有最大ZXID的节点)</li>
+<li>进入发现阶段，follower与潜在的新leader进行沟通，如果发现超过法定人数的follower同意，则潜在的新leader将epoch加1，进入新的纪元。新的leader产生</li>
+<li>集群间进行数据同步，保证集群中各个节点的事务一致</li>
+<li>集群恢复到广播模式，开始接受客户端的写请求</li>
+</ol>
+<blockquote>
+<p>当 leader在commit之后但在发出commit消息之前宕机，即只有老leader自己commit了，而其它follower都没有收到commit消息 新的leader也必须保证这个proposal被提交.(新的leader会重新发送该proprosal的commit消息)</p>
+</blockquote>
+<blockquote>
+<p>当 leader产生某个proprosal之后但在发出消息之前宕机，即只有老leader自己有这个proproal，当老的leader重启后(此时左右follower),新的leader必须保证老的leader必须丢弃这个proprosal.(新的leader会通知上线后的老leader截断其epoch对应的最后一个commit的位置)</p>
+</blockquote>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>《从Paxos到ZooKeeper》 (不推荐)</p>
+<p><a href="https://cwiki.apache.org/confluence/display/ZOOKEEPER/Zab+vs.+Paxos" target="_blank" rel="noopener">Zab vs. Paxos</a></p>
+<p><a href="https://distributedalgorithm.wordpress.com/2015/06/20/architecture-of-zab-zookeeper-atomic-broadcast-protocol/" target="_blank" rel="noopener">Architecture of ZAB – ZooKeeper Atomic Broadcast protocol</a></p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/wx_qrcode.jpg" alt="孙成 wechat" style="width: 200px; max-width: 100%;"/>
+    <div>扫一扫关注我的个人公众号</div>
+</div>
+
+      </div>
+    
+
+    
+      <div>
+        <div style="padding: 10px 0; margin: 20px auto; width: 90%; text-align: center;">
+  <div>赞助一波👍</div>
+  <button id="rewardButton" disable="enable" onclick="var qr = document.getElementById('QR'); if (qr.style.display === 'none') {qr.style.display='block';} else {qr.style.display='none'}">
+    <span>打赏</span>
+  </button>
+  <div id="QR" style="display: none;">
+
+    
+      <div id="wechat" style="display: inline-block">
+        <img id="wechat_qr" src="/images/wechatpay.png" alt="孙成 微信支付"/>
+        <p>微信支付</p>
+      </div>
+    
+
+    
+      <div id="alipay" style="display: inline-block">
+        <img id="alipay_qr" src="/images/alipay.png" alt="孙成 支付宝"/>
+        <p>支付宝</p>
+      </div>
+    
+
+    
+
+  </div>
+</div>
+
+      </div>
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/中间件/" rel="tag"># 中间件</a>
+          
+            <a href="/tags/Zookeeper/" rel="tag"># Zookeeper</a>
+          
+            <a href="/tags/分布式/" rel="tag"># 分布式</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/07/27/springboot执行jar包过程/" rel="next" title="springboot执行jar包过程">
+                <i class="fa fa-chevron-left"></i> springboot执行jar包过程
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/09/14/使用Docker-Swarm快速搭建Redis集群/" rel="prev" title="使用Docker Swarm快速搭建Redis集群">
+                使用Docker Swarm快速搭建Redis集群 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+    <div class="comments" id="comments">
+      <div id="lv-container" data-id="city" data-uid="EasonSunC"></div>
+    </div>
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">孙成</p>
+              <p class="site-description motion-element" itemprop="description">孙成的杂书馆，聊聊技术，谈谈生活</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">17</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">12</span>
+                    <span class="site-state-item-name">分类</span>
+                  
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">标签</span>
+                  
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/SummerSunC" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="mailto:suncheng516@gmail.com" target="_blank" title="E-Mail" rel="external nofollow"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.jianshu.com/u/5de5d96d74ed" target="_blank" title="简书" rel="external nofollow"><i class="fa fa-fw fa-heartbeat"></i>简书</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://juejin.im/user/5a72821c6fb9a01cb42cb087" target="_blank" title="掘金" rel="external nofollow"><i class="fa fa-fw fa-spinner"></i>掘金</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#两阶段提交"><span class="nav-number">2.</span> <span class="nav-text">两阶段提交</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#第一阶段（请求阶段）"><span class="nav-number">2.1.</span> <span class="nav-text">第一阶段（请求阶段）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#第二阶段（提交阶段）"><span class="nav-number">2.2.</span> <span class="nav-text">第二阶段（提交阶段）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#协议介绍"><span class="nav-number">3.</span> <span class="nav-text">协议介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ZAB特性"><span class="nav-number">3.1.</span> <span class="nav-text">ZAB特性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ZAB的具体实现"><span class="nav-number">3.2.</span> <span class="nav-text">ZAB的具体实现</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#ZXID"><span class="nav-number">3.2.1.</span> <span class="nav-text">ZXID</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#历史队列-history-queue"><span class="nav-number">3.2.2.</span> <span class="nav-text">历史队列(history queue)</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ZAB工作模式"><span class="nav-number">4.</span> <span class="nav-text">ZAB工作模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#广播-broadcast-模式"><span class="nav-number">4.1.</span> <span class="nav-text">广播(broadcast)模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#恢复模式"><span class="nav-number">4.2.</span> <span class="nav-text">恢复模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">5.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2018</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">孙成</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.7.1</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a></div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/three.min.js"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/canvas_lines.min.js"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.4.1"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.4.1"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.4.1"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.4.1"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.4.1"></script>
+
+
+
+  
+
+
+
+  
+    <script type="text/javascript">
+      window.livereOptions = {
+        refer: '2018/08/26/聊聊zookeeper的ZAB算法/'
+      };
+      (function(d, s) {
+        var j, e = d.getElementsByTagName(s)[0];
+        if (typeof LivereTower === 'function') { return; }
+        j = d.createElement(s);
+        j.src = 'https://cdn-city.livere.com/js/embed.dist.js';
+        j.async = true;
+        e.parentNode.insertBefore(j, e);
+      })(document, 'script');
+    </script>
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
