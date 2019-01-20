@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=6.4.1" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.ico?v=6.4.1">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.ico?v=6.4.1">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.4.1" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.4.1',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="最近线上数据库迁到haproxy上，突然出现了很多数据库连接失败的错误，经过排查是因为我们使用了Mysql的ReplicationDriver,数据库连接池使用的是druid, 而druid针对Mysql Replication 连接的检查实现上有个bug ,导致的。当我正准备提issue的时候，发现很多人都遇到了这个问题，所以想写遍文章记录一下。话不多说，下面我们来正式复盘一下这个问题和定位解">
+<meta name="keywords" content="笔记">
+<meta property="og:type" content="article">
+<meta property="og:title" content="记一次数据库连接池断开问题">
+<meta property="og:url" content="http://blog.sunwaiting.com/2019/01/20/记一次数据库连接池断开问题/index.html">
+<meta property="og:site_name" content="孙成酱子说">
+<meta property="og:description" content="最近线上数据库迁到haproxy上，突然出现了很多数据库连接失败的错误，经过排查是因为我们使用了Mysql的ReplicationDriver,数据库连接池使用的是druid, 而druid针对Mysql Replication 连接的检查实现上有个bug ,导致的。当我正准备提issue的时候，发现很多人都遇到了这个问题，所以想写遍文章记录一下。话不多说，下面我们来正式复盘一下这个问题和定位解">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://file.sunwaiting.com/conn_break.jpeg">
+<meta property="og:updated_time" content="2019-01-20T07:16:42.364Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="记一次数据库连接池断开问题">
+<meta name="twitter:description" content="最近线上数据库迁到haproxy上，突然出现了很多数据库连接失败的错误，经过排查是因为我们使用了Mysql的ReplicationDriver,数据库连接池使用的是druid, 而druid针对Mysql Replication 连接的检查实现上有个bug ,导致的。当我正准备提issue的时候，发现很多人都遇到了这个问题，所以想写遍文章记录一下。话不多说，下面我们来正式复盘一下这个问题和定位解">
+<meta name="twitter:image" content="http://file.sunwaiting.com/conn_break.jpeg">
+
+
+
+
+
+
+  <link rel="canonical" href="http://blog.sunwaiting.com/2019/01/20/记一次数据库连接池断开问题/"/>
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>记一次数据库连接池断开问题 | 孙成酱子说</title>
+  
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">孙成酱子说</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <h1 class="site-subtitle" itemprop="description">实践检验真知</h1>
+      
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br />首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-about">
+    <a href="/about/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-user"></i> <br />关于</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2019/01/20/记一次数据库连接池断开问题/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="孙成">
+      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="孙成酱子说">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">记一次数据库连接池断开问题
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-01-20 15:50:04 / 修改时间：15:16:42" itemprop="dateCreated datePublished" datetime="2019-01-20T15:50:04+08:00">2019-01-20</time>
+            
+
+            
+              
+
+              
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+        <div class="post-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+          
+          
+            <div class="post-gallery-row">
+              <a class="post-gallery-img fancybox"
+                 href="http://file.sunwaiting.com/conn_break.jpeg" rel="gallery_cjr4jmiq20000adjh4th17gy0"
+                 itemscope itemtype="http://schema.org/ImageObject" itemprop="url">
+                <img src="http://file.sunwaiting.com/conn_break.jpeg" itemprop="contentUrl"/>
+              </a>
+            
+          
+
+          
+          </div>
+        </div>
+      
+
+      
+        <p>最近线上数据库迁到haproxy上，突然出现了很多数据库连接失败的错误，经过排查是因为我们使用了Mysql的ReplicationDriver,数据库连接池使用的是druid, 而druid针对Mysql Replication 连接的检查实现上有个bug ,导致的。当我正准备提issue的时候，发现很多人都遇到了这个问题，所以想写遍文章记录一下。话不多说，下面我们来正式复盘一下这个问题和定位解决的过程。</p>
+<p>之前公司的DBA新上线了一套HAProxy用来替代之前的VIP的高可用法案，所以我们也将从库的连接从VIP迁到了HAProxy.但是上线后不久我们发现线上开始出现数据库连接错误，而且凌晨的时候最多。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">com.mysql.jdbc.exceptions.jdbc4.CommunicationsException: Communications link failure</span><br></pre></td></tr></table></figure>
+<p>相信有一点经验的java开发对这个错误并不陌生，导致这个问题的原因也非常好定位，无非是客户端与数据库的连接被服务端主动断开，而客户端还傻傻的用这个已经被断开的连接去请求数据库，导致失败。</p>
+<p>我们知道Mysql有一个wait_timeout的配置会自动将空闲时间超过这个值（通常为8小时）的连接断开，因为物理数据库的配置并没有变动，而且代码中连接池中的配置的最小空闲时间远小于数据库wait_timeout，所以这个假设首先被排除。</p>
+<p>那么会不会是HAProxy将我们的连接给断开了呢(很有可能) ？ 于是我们查看了HAProxy的配置<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">timeout connect：60s // 定义haproxy将客户端请求转发至后端服务器所等待的超时时长</span><br><span class="line">timeout client： 120s //客户端非活动状态的超时时长</span><br><span class="line">timeout server： 120s  //客户端与服务器端建立连接后，等待服务器端的超时时长</span><br></pre></td></tr></table></figure></p>
+<p>发现HAProxy会主动将空闲时间时间超过1分钟的连接断开，于是我们修改了druid的配置，将数据库空闲验证的时间修改为timeBetweenEvictionRunsMillis修改为50s（原来是60s,考虑到极限情况如果设置为60s的话依然会存在不能保活的情况），但是经过测试后我们发现问题依然存在。</p>
+<p>既然将保活时间设置到了60s以内为什么还会出现连接被断开呢？稍微思考一下，可能的原因不外乎只有两个</p>
+<ul>
+<li>HAProxy维护的连接有问题 </li>
+<li>保活策略没有生效</li>
+</ul>
+<p>顺着这个思路我们首先排除了HAProxy的问题（简单来说就是HAProxy会保持客户端和服务器的会话，保证客户端到HAProxy的连接和HAProxy到服务器的连接是一致的，他们的空闲时间始终是一样的）<br>那么我们再来看看是不是保活策略没有生效呢？我们目前用的是druid来管理我们的数据库连接池 ， 要弄清这个问题，我们得先看看druid是进行工作及怎么进行活性检测的。</p>
+<p><img src="http://file.sunwaiting.com/druid_conn_pool.png" alt=""></p>
+<p>上面这张图表示了druid在获取线程池的大致的逻辑过程：druid在初始化时会创建两个守护线程，分别承担线程的创建和销毁任务，当用户线程出现等待获取线程的操作时（且线程池中的线程数不大于最大活动线程数），创建线程会自动创建新的连接并放到线程池中，所以当用户线程需要新的连接时，只需要直接从线程池获取即可。用户线程从线程池中获取到连接会根据用户的配置决定是否线程进行有效性验证，如果验证线程有效则返回线程，如果无效则将该连接关闭，（DestoryConnectionThread自动回收已关闭的连接），然后尝试重新从连接池中获取连接，知道获取到有效连接为止并返回连接。下面我们来看看代码的具体实现。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> DruidPooledConnection <span class="title">getConnectionDirect</span><span class="params">(<span class="keyword">long</span> maxWaitMillis)</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> notFullTimeoutRetryCnt = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (;;) &#123; <span class="comment">// 死循环，直到获取到有效连接为止，依赖CreateConnectionThread 保证 ，连接池中始终有有效连接资源</span></span><br><span class="line">        <span class="comment">// handle notFullTimeoutRetry</span></span><br><span class="line">        DruidPooledConnection poolableConnection;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            poolableConnection = getConnectionInternal(maxWaitMillis); <span class="comment">// 从连接池中获取连接</span></span><br><span class="line">        &#125; <span class="keyword">catch</span> (GetConnectionTimeoutException ex) &#123;</span><br><span class="line">            <span class="keyword">if</span> (notFullTimeoutRetryCnt &lt;= <span class="keyword">this</span>.notFullTimeoutRetryCount &amp;&amp; !isFull()) &#123;</span><br><span class="line">                notFullTimeoutRetryCnt++;</span><br><span class="line">                <span class="keyword">if</span> (LOG.isWarnEnabled()) &#123;</span><br><span class="line">                    LOG.warn(<span class="string">"not full timeout retry : "</span> + notFullTimeoutRetryCnt);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">throw</span> ex;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (isTestOnBorrow()) &#123;   </span><br><span class="line">            <span class="comment">// 。。。这里不讨论 省略</span></span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            Connection realConnection = poolableConnection.getConnection(); </span><br><span class="line">            <span class="keyword">if</span> (realConnection.isClosed()) &#123;   </span><br><span class="line">                discardConnection(<span class="keyword">null</span>); <span class="comment">// 传入null，避免重复关闭</span></span><br><span class="line">                <span class="keyword">continue</span>;   <span class="comment">//  如果连接已经关闭，丢弃，尝试重新获取新的连接</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (isTestWhileIdle()) &#123;  <span class="comment">// 验证空闲连接有效性的配置 testWhileIdle = true</span></span><br><span class="line">                <span class="keyword">final</span> <span class="keyword">long</span> currentTimeMillis = System.currentTimeMillis();</span><br><span class="line">                <span class="keyword">final</span> <span class="keyword">long</span> lastActiveTimeMillis = poolableConnection.getConnectionHolder().getLastActiveTimeMillis();</span><br><span class="line">                <span class="keyword">final</span> <span class="keyword">long</span> idleMillis = currentTimeMillis - lastActiveTimeMillis;</span><br><span class="line">                <span class="keyword">long</span> timeBetweenEvictionRunsMillis = <span class="keyword">this</span>.getTimeBetweenEvictionRunsMillis();</span><br><span class="line">                <span class="keyword">if</span> (timeBetweenEvictionRunsMillis &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">                    timeBetweenEvictionRunsMillis = DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS;</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="comment">// 当前连接的空闲时间是否大于timeBetweenEvictionRunsMillis，如果大于才检测，否则跳过</span></span><br><span class="line">                <span class="keyword">if</span> (idleMillis &gt;= timeBetweenEvictionRunsMillis) &#123; </span><br><span class="line">                    <span class="keyword">boolean</span> validate = testConnectionInternal(poolableConnection.getConnection());</span><br><span class="line">                    <span class="keyword">if</span> (!validate) &#123;</span><br><span class="line">                        <span class="keyword">if</span> (LOG.isDebugEnabled()) &#123;</span><br><span class="line">                            LOG.debug(<span class="string">"skip not validate connection."</span>);</span><br><span class="line">                        &#125;</span><br><span class="line"></span><br><span class="line">                        discardConnection(realConnection); <span class="comment">//丢弃连接</span></span><br><span class="line">                        <span class="keyword">continue</span>;  <span class="comment">// 尝试重新获取新的连接</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">return</span> poolableConnection;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">testConnectionInternal</span><span class="params">(Connection conn)</span> </span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (validConnectionChecker != <span class="keyword">null</span>) &#123; </span><br><span class="line">            <span class="comment">// 检查连接有效性</span></span><br><span class="line">            <span class="keyword">return</span> validConnectionChecker.isValidConnection(conn, validationQuery, validationQueryTimeout);  </span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (conn.isClosed()) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">null</span> == validationQuery) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        Statement stmt = <span class="keyword">null</span>;</span><br><span class="line">        ResultSet rset = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            stmt = conn.createStatement();</span><br><span class="line">            <span class="keyword">if</span> (getValidationQueryTimeout() &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                stmt.setQueryTimeout(validationQueryTimeout);</span><br><span class="line">            &#125;</span><br><span class="line">            rset = stmt.executeQuery(validationQuery);</span><br><span class="line">            <span class="keyword">if</span> (!rset.next()) &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            JdbcUtils.close(rset);</span><br><span class="line">            JdbcUtils.close(stmt);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Exception ex) &#123;</span><br><span class="line">        <span class="comment">// skip</span></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (sqlFile != <span class="keyword">null</span>) &#123;</span><br><span class="line">            JdbcSqlStat.setContextSqlFile(sqlFile);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (sqlName != <span class="keyword">null</span>) &#123;</span><br><span class="line">            JdbcSqlStat.setContextSqlName(sqlName);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySqlValidConnectionChecker</span> <span class="keyword">extends</span> <span class="title">ValidConnectionCheckerAdapter</span> <span class="keyword">implements</span> <span class="title">ValidConnectionChecker</span>, <span class="title">Serializable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> DEFAULT_VALIDATION_QUERY_TIMEOUT = <span class="number">1000</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">long</span> serialVersionUID = <span class="number">1L</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Log  LOG              = LogFactory.getLog(MySqlValidConnectionChecker.class);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Class&lt;?&gt; clazz;</span><br><span class="line">    <span class="keyword">private</span> Method   ping;</span><br><span class="line">    <span class="comment">// 是否使用ping 检测连接的有效性，如果为false 则使用select 1 查询</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">boolean</span>  usePingMethod = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MySqlValidConnectionChecker</span><span class="params">()</span></span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            clazz = Utils.loadClass(<span class="string">"com.mysql.jdbc.MySQLConnection"</span>);</span><br><span class="line">            <span class="keyword">if</span> (clazz == <span class="keyword">null</span>) &#123;</span><br><span class="line">                clazz = Utils.loadClass(<span class="string">"com.mysql.cj.jdbc.ConnectionImpl"</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (clazz != <span class="keyword">null</span>) &#123;</span><br><span class="line">                ping = clazz.getMethod(<span class="string">"pingInternal"</span>, <span class="keyword">boolean</span>.class, <span class="keyword">int</span>.class);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (ping != <span class="keyword">null</span>) &#123;</span><br><span class="line">                usePingMethod = <span class="keyword">true</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">            LOG.warn(<span class="string">"Cannot resolve com.mysql.jdbc.Connection.ping method.  Will use 'SELECT 1' instead."</span>, e);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        configFromProperties(System.getProperties());</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isValidConnection</span><span class="params">(Connection conn, String validateQuery, <span class="keyword">int</span> validationQueryTimeout)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (conn.isClosed()) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (usePingMethod) &#123; </span><br><span class="line">            <span class="keyword">if</span> (conn <span class="keyword">instanceof</span> DruidPooledConnection) &#123;</span><br><span class="line">                conn = ((DruidPooledConnection) conn).getConnection();</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (conn <span class="keyword">instanceof</span> ConnectionProxy) &#123;</span><br><span class="line">                conn = ((ConnectionProxy) conn).getRawObject();</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 当前的conn 是否是  com.mysql.jdbc.MySQLConnection （or com.mysql.cj.jdbc.ConnectionImpl）</span></span><br><span class="line">            <span class="keyword">if</span> (clazz.isAssignableFrom(conn.getClass())) &#123;</span><br><span class="line">                <span class="keyword">if</span> (validationQueryTimeout &lt; <span class="number">0</span>) &#123;</span><br><span class="line">                    validationQueryTimeout = DEFAULT_VALIDATION_QUERY_TIMEOUT;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                <span class="comment">//使用反射调用MySQLConnection.pingInternal 方法，检查连接有效性，并且会刷新连接的空闲时间</span></span><br><span class="line">                <span class="comment">// 如果失败则会抛出异常，上层捕获</span></span><br><span class="line">                ping.invoke(conn, <span class="keyword">true</span>, validationQueryTimeout * <span class="number">1000</span>); </span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 当usePingMethod=false或者 conn 不是 com.mysql.jdbc.MySQLConnection （or com.mysql.cj.jdbc.ConnectionImpl） 会执行一下方法</span></span><br><span class="line">        <span class="keyword">if</span> (validateQuery == <span class="keyword">null</span> || validateQuery.length() == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        Statement stmt = <span class="keyword">null</span>;</span><br><span class="line">        ResultSet rs = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            stmt = conn.createStatement();</span><br><span class="line">            <span class="keyword">if</span> (validationQueryTimeout &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                stmt.setQueryTimeout(validationQueryTimeout);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 执行 select 1 ，并且会刷新连接的空闲时间</span></span><br><span class="line">            <span class="comment">//  如果失败则会抛出异常，上层捕获</span></span><br><span class="line">            rs = stmt.executeQuery(validateQuery);</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            JdbcUtils.close(rs);</span><br><span class="line">            JdbcUtils.close(stmt);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>通过调试，我发现<code>clazz.isAssignableFrom(conn.getClass())</code>为false,也就是说这里的conn并不是<code>com.mysql.jdbc.MySQLConnection</code>，原来为了DB的读写分离项目使用的是数据库驱动是RepliationDriver而不是默认的Driver(<code>jdbc:mysql:replication://</code>), 因此使用的连接也是<code>com.mysql.jdbc.ReplicationConnection</code>, 而ReplicationConnection直接继承自 <code>com.mysql.jdbc.Connection</code> 并没有继承<code>com.mysql.jdbc.MySQLConnection</code>（仅限于mysql-connection-java 1.5.38版本之前，而我们线上使用的是1.5.35）</p>
+<blockquote>
+<p><code>com.mysql.jdbc.ReplicationConnection</code> 在mysql-connector-java 1.5.38版本之前（<a href="https://github.com/mysql/mysql-connector-j/blob/5.1.35/src/com/mysql/jdbc/ReplicationConnection.java" target="_blank" rel="noopener">ReplicationConnection源码</a>）的是<code>public class ReplicationConnection implements Connection, PingTarget</code></p>
+</blockquote>
+<blockquote>
+<p>1.5.38([GitHub源码]开始将<code>com.mysql.jdbc.ReplicationConnection</code>抽象成接口（直接继承自<code>com.mysql.jdbc.MySQLConnection</code>），并使用他的的子类 <code>com.mysql.jdbc.JDBC4ReplicationMySQLConnection</code>（<a href="https://github.com/mysql/mysql-connector-j/blob/5.1.38/src/com/mysql/jdbc/JDBC4ReplicationMySQLConnection.java" target="_blank" rel="noopener">JDBC4ReplicationMySQLConnection源码</a>）来实现，<code>com.mysql.jdbc.JDBC4ReplicationMySQLConnection</code>的内部功能则是由新增的代理类<code>com.mysql.jdbc.ReplicationConnectionProxy</code>来实现的 （[ReplicationConnectionProxy(<a href="https://github.com/mysql/mysql-connector-j/blob/5.1.35/src/com/mysql/jdbc/ReplicationConnection.java)]实现了原本`com.mysql.jdbc.ReplicationConnection`类实现的功能）" target="_blank" rel="noopener">https://github.com/mysql/mysql-connector-j/blob/5.1.35/src/com/mysql/jdbc/ReplicationConnection.java)]实现了原本`com.mysql.jdbc.ReplicationConnection`类实现的功能）</a></p>
+</blockquote>
+<p>5.1.35版本<br><img src="http://file.sunwaiting.com/debug_connector_checker.png" alt="5.1.35版本"></p>
+<p>5.1.47版本<br><img src="http://file.sunwaiting.com/debug_conn_new_checker.png" alt="5.1.47版本"></p>
+<p><img src="http://file.sunwaiting.com/JDBC4ReplicationMySQLConnection.png" alt=""></p>
+<p>所以这里无论usePingMethod设置的值是什么，MySqlValidConnectionChecker都是执行SELECT 1 操作. 下面我们来具体看一下执行过程</p>
+<p>先打开Mysql的日志 (当然是本地开发环境喽，我这里为了方便，主从库配置的是同一个地址)<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">set</span> <span class="keyword">global</span> general_log = <span class="keyword">on</span>;</span><br></pre></td></tr></table></figure></p>
+<p>我们会得到以下日志（这里我只保留了核心日志信息，并进行了一些脱敏处理）<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">event_time  thread_id   command_type    argument</span><br><span class="line">2019-01-15T07:51:45.814624Z	   18 Query	SELECT 1            // 执行select 1的线程ID是 18</span><br><span class="line">2019-01-15T07:51:45.822731Z	   19 Query	select * from xxx_table where xxx_column = &apos;xxx&apos; limit 0,1 // 实际执行语句的线程ID是 19</span><br></pre></td></tr></table></figure></p>
+<p>我们很容易发现执行检查操作的线程和执行业务查询的线程是不一样的，因此我们可以断定<font color="red">检查用的连接和执行业务的数据库连接不是同一个</font>，执行业务操作的数据库连接没有保活，空闲时间并没有被刷新，所以该连接一旦长时间没有访问就会被断开，导致出现连接不可用。问题找到了，但是为什么会出现这种问题呢，我们先来看看 <code>com.mysql.jdbc.ReplicationConnection</code>是怎么实现的（虽然mysql-connection-java 1.5.38开始已经用其他类实现,但是实现原理是一样的，所以我们这里还是以1.5.35版本为例）。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * ！这里省略了非相关代码</span></span><br><span class="line"><span class="comment"> * 简单来说就是维护了两个连接集合，一个是两个连接集合，一个包含主库连接，一个包含一个或多个从库连接， 当readonly = true 是使用从库连接，否则使用主库连接</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReplicationConnection</span> <span class="keyword">implements</span> <span class="title">Connection</span>, <span class="title">PingTarget</span> </span>&#123;</span><br><span class="line">    <span class="keyword">protected</span> Connection currentConnection;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">protected</span> LoadBalancedConnection masterConnection;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">protected</span> LoadBalancedConnection slavesConnection;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> ReplicationConnectionGroup connectionGroup;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">boolean</span> readOnly = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 当设置readOnly时，切换当前连接</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">setReadOnly</span><span class="params">(<span class="keyword">boolean</span> readOnly)</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (readOnly) &#123; </span><br><span class="line">            <span class="keyword">if</span> (<span class="keyword">this</span>.currentConnection != <span class="keyword">this</span>.slavesConnection) &#123;</span><br><span class="line">                switchToSlavesConnection();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> (<span class="keyword">this</span>.currentConnection != <span class="keyword">this</span>.masterConnection) &#123;</span><br><span class="line">                switchToMasterConnection();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">this</span>.readOnly = readOnly;</span><br><span class="line">        <span class="comment">// allow master connection to be set to/from read-only if</span></span><br><span class="line">        <span class="comment">// there are no slaves</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.currentConnection == <span class="keyword">this</span>.masterConnection) &#123;</span><br><span class="line">            <span class="keyword">this</span>.currentConnection.setReadOnly(<span class="keyword">this</span>.readOnly);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">switchToMasterConnection</span><span class="params">()</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.masterConnection == <span class="keyword">null</span> || <span class="keyword">this</span>.masterConnection.isClosed()) &#123;</span><br><span class="line">            <span class="keyword">this</span>.initializeMasterConnection(); </span><br><span class="line">        &#125;</span><br><span class="line">        swapConnections(<span class="keyword">this</span>.masterConnection, <span class="keyword">this</span>.slavesConnection);</span><br><span class="line">        <span class="keyword">this</span>.masterConnection.setReadOnly(<span class="keyword">false</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">switchToSlavesConnection</span><span class="params">()</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.slavesConnection == <span class="keyword">null</span> || <span class="keyword">this</span>.slavesConnection.isClosed()) &#123;</span><br><span class="line">            <span class="keyword">this</span>.initializeSlaveConnection(); </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.slavesConnection != <span class="keyword">null</span>) &#123;</span><br><span class="line">            swapConnections(<span class="keyword">this</span>.slavesConnection, <span class="keyword">this</span>.masterConnection);</span><br><span class="line">            <span class="keyword">this</span>.slavesConnection.setReadOnly(<span class="keyword">true</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>问题找到了，解决方案也比较简单， druid的高版本已经支持自定义ValidConnectionChecker</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.hujiang.coupon.common.druid.check;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * connection checker for Mysql Replication Driver (support Normal Driver as well)</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Slf</span>4j</span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySqlReplicationValidConnectionChecker</span> <span class="keyword">extends</span> <span class="title">ValidConnectionCheckerAdapter</span> <span class="keyword">implements</span> <span class="title">ValidConnectionChecker</span>, <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> DEFAULT_VALIDATION_QUERY_TIMEOUT = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String DEFAULT_VALIDATION_QUERY = <span class="string">"SELECT 1"</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">long</span> serialVersionUID = <span class="number">1L</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">boolean</span> usePingMethod = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MySqlReplicationValidConnectionChecker</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        configFromProperties(System.getProperties());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configFromProperties</span><span class="params">(Properties properties)</span> </span>&#123;</span><br><span class="line">        String property = properties.getProperty(<span class="string">"druid.mysql.usePingMethod"</span>);</span><br><span class="line">        <span class="keyword">if</span> (<span class="string">"true"</span>.equals(property)) &#123;</span><br><span class="line">            setUsePingMethod(<span class="keyword">true</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (<span class="string">"false"</span>.equals(property)) &#123;</span><br><span class="line">            setUsePingMethod(<span class="keyword">false</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isUsePingMethod</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> usePingMethod;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setUsePingMethod</span><span class="params">(<span class="keyword">boolean</span> usePingMethod)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.usePingMethod = usePingMethod;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isValidConnection</span><span class="params">(Connection conn, String validateQuery, <span class="keyword">int</span> validationQueryTimeout)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (conn.isClosed()) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (conn <span class="keyword">instanceof</span> DruidPooledConnection) &#123;</span><br><span class="line">            conn = ((DruidPooledConnection) conn).getConnection();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (conn <span class="keyword">instanceof</span> ConnectionProxy) &#123;</span><br><span class="line">            conn = ((ConnectionProxy) conn).getRawObject();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (usePingMethod) &#123;</span><br><span class="line">            <span class="keyword">if</span> (conn <span class="keyword">instanceof</span> MySQLConnection) &#123;</span><br><span class="line">                <span class="comment">// 使用ping 方法替代原来的pingInternal 方法，ReplicationMySQLConnection内部实现中会同时执行master和slave节点的ping操作</span></span><br><span class="line">                ((MySQLConnection) conn).ping();</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        String query = validateQuery;</span><br><span class="line">        <span class="keyword">if</span> (validateQuery == <span class="keyword">null</span> || validateQuery.isEmpty()) &#123;</span><br><span class="line">            query = DEFAULT_VALIDATION_QUERY;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(conn <span class="keyword">instanceof</span> ReplicationConnection)&#123;</span><br><span class="line">            select_1(((ReplicationConnection) conn).getMasterConnection(),query,validationQueryTimeout);</span><br><span class="line">            select_1(((ReplicationConnection) conn).getSlavesConnection(),query,validationQueryTimeout);</span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">            select_1(conn, query, validationQueryTimeout);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">select_1</span><span class="params">(Connection conn, String validateQuery, <span class="keyword">int</span> validationQueryTimeout)</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">        Statement stmt = <span class="keyword">null</span>;</span><br><span class="line">        ResultSet rs = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            stmt = conn.createStatement();</span><br><span class="line">            <span class="keyword">if</span> (validationQueryTimeout &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                stmt.setQueryTimeout(validationQueryTimeout);</span><br><span class="line">            &#125;</span><br><span class="line">            rs = stmt.executeQuery(validateQuery);</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            JdbcUtils.close(rs);</span><br><span class="line">            JdbcUtils.close(stmt);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 可以看到com.mysql.jdbc.ReplicationMySQLConnection 的ping()方法的实现</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReplicationMySQLConnection</span> <span class="keyword">extends</span> <span class="title">MultiHostMySQLConnection</span> <span class="keyword">implements</span> <span class="title">ReplicationConnection</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">ping</span><span class="params">()</span> <span class="keyword">throws</span> SQLException </span>&#123;</span><br><span class="line">        Connection conn;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> ((conn = getValidatedMasterConnection()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">                conn.ping();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (SQLException e) &#123;</span><br><span class="line">            <span class="keyword">if</span> (isMasterConnection()) &#123;</span><br><span class="line">                <span class="keyword">throw</span> e;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> ((conn = getValidatedSlavesConnection()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">                conn.ping();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (SQLException e) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!isMasterConnection()) &#123;</span><br><span class="line">                <span class="keyword">throw</span> e;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/wx_qrcode.jpg" alt="孙成 wechat" style="width: 200px; max-width: 100%;"/>
+    <div>扫一扫关注我的个人公众号</div>
+</div>
+
+      </div>
+    
+
+    
+      <div>
+        <div style="padding: 10px 0; margin: 20px auto; width: 90%; text-align: center;">
+  <div>赞助一波👍</div>
+  <button id="rewardButton" disable="enable" onclick="var qr = document.getElementById('QR'); if (qr.style.display === 'none') {qr.style.display='block';} else {qr.style.display='none'}">
+    <span>打赏</span>
+  </button>
+  <div id="QR" style="display: none;">
+
+    
+      <div id="wechat" style="display: inline-block">
+        <img id="wechat_qr" src="/images/wechatpay.png" alt="孙成 微信支付"/>
+        <p>微信支付</p>
+      </div>
+    
+
+    
+      <div id="alipay" style="display: inline-block">
+        <img id="alipay_qr" src="/images/alipay.png" alt="孙成 支付宝"/>
+        <p>支付宝</p>
+      </div>
+    
+
+    
+
+  </div>
+</div>
+
+      </div>
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/笔记/" rel="tag"># 笔记</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/09/14/使用Docker-Swarm快速搭建Redis集群/" rel="next" title="使用Docker Swarm快速搭建Redis集群">
+                <i class="fa fa-chevron-left"></i> 使用Docker Swarm快速搭建Redis集群
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+    <div class="comments" id="comments">
+      <div id="lv-container" data-id="city" data-uid="EasonSunC"></div>
+    </div>
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+
+      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">孙成</p>
+              <p class="site-description motion-element" itemprop="description">孙成的杂书馆，聊聊技术，谈谈生活</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">18</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">12</span>
+                    <span class="site-state-item-name">分类</span>
+                  
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">标签</span>
+                  
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/SummerSunC" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="mailto:suncheng516@gmail.com" target="_blank" title="E-Mail" rel="external nofollow"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.jianshu.com/u/5de5d96d74ed" target="_blank" title="简书" rel="external nofollow"><i class="fa fa-fw fa-heartbeat"></i>简书</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://juejin.im/user/5a72821c6fb9a01cb42cb087" target="_blank" title="掘金" rel="external nofollow"><i class="fa fa-fw fa-spinner"></i>掘金</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">孙成</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.7.1</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a></div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/three.min.js"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/three/canvas_lines.min.js"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.4.1"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.4.1"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.4.1"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.4.1"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.4.1"></script>
+
+
+
+  
+
+
+
+  
+    <script type="text/javascript">
+      window.livereOptions = {
+        refer: '2019/01/20/记一次数据库连接池断开问题/'
+      };
+      (function(d, s) {
+        var j, e = d.getElementsByTagName(s)[0];
+        if (typeof LivereTower === 'function') { return; }
+        j = d.createElement(s);
+        j.src = 'https://cdn-city.livere.com/js/embed.dist.js';
+        j.async = true;
+        e.parentNode.insertBefore(j, e);
+      })(document, 'script');
+    </script>
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

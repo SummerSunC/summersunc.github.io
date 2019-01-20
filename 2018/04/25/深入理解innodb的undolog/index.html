@@ -116,13 +116,13 @@
 <meta property="og:site_name" content="孙成酱子说">
 <meta property="og:description" content="简介在InnoDB存储引擎中，使用了undo log,它的主要作用是数据回滚和实现MVCC,undo log是一种逻辑日志，它只是将数据库逻辑地回滚到原来的样子，所有的修改都被逻辑地取消，但是数据结构和数据页本身在回滚之后与之前可能已经发生的变化，这样做的目的是因为数据库可能会同时存在多个并发事务，他们可能同时修改一个页上的其它数据行，如果因为一个事务的回滚而将数据页回滚到该事务开始时的状态，则">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="http://onoad5uf7.bkt.clouddn.com/undolog_structs.png">
-<meta property="og:image" content="http://onoad5uf7.bkt.clouddn.com/undolog_history_list.png">
-<meta property="og:updated_time" content="2018-04-27T09:55:23.800Z">
+<meta property="og:image" content="http://file.sunwaiting.com/undolog_structs.png">
+<meta property="og:image" content="http://file.sunwaiting.com/undolog_history_list.png">
+<meta property="og:updated_time" content="2019-01-20T06:53:30.204Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="深入理解innodb的undolog">
 <meta name="twitter:description" content="简介在InnoDB存储引擎中，使用了undo log,它的主要作用是数据回滚和实现MVCC,undo log是一种逻辑日志，它只是将数据库逻辑地回滚到原来的样子，所有的修改都被逻辑地取消，但是数据结构和数据页本身在回滚之后与之前可能已经发生的变化，这样做的目的是因为数据库可能会同时存在多个并发事务，他们可能同时修改一个页上的其它数据行，如果因为一个事务的回滚而将数据页回滚到该事务开始时的状态，则">
-<meta name="twitter:image" content="http://onoad5uf7.bkt.clouddn.com/undolog_structs.png">
+<meta name="twitter:image" content="http://file.sunwaiting.com/undolog_structs.png">
 
 
 
@@ -355,7 +355,7 @@
                 
                   <span class="post-meta-item-text">更新于</span>
                 
-                <time title="修改时间：2018-04-27 17:55:23" itemprop="dateModified" datetime="2018-04-27T17:55:23+08:00">2018-04-27</time>
+                <time title="修改时间：2019-01-20 14:53:30" itemprop="dateModified" datetime="2019-01-20T14:53:30+08:00">2019-01-20</time>
               
             
           </span>
@@ -466,7 +466,7 @@
 <blockquote>
 <p>撤销表空间在<em>5.7.21</em>版本之后被标记为<em>弃用</em> 未来可能被删除，目前（MySQL_5.7）innodb_undo_tablespaces默认值为0 即不启用。</p>
 </blockquote>
-<p><img src="http://onoad5uf7.bkt.clouddn.com/undolog_structs.png" alt="Undo回滚段布局结构"></p>
+<p><img src="http://file.sunwaiting.com/undolog_structs.png" alt="Undo回滚段布局结构"></p>
 <h2 id="事务提交"><a href="#事务提交" class="headerlink" title="事务提交"></a>事务提交</h2><p>根据行为的不同undo log分为两种 insert undo log / update undo log.</p>
 <p>insert undo log是在insert操作中产生的undo log。因为insert操作的记录只对事务本身可见，对于其它事务此记录是不可见的，所以insert undo log可以在事务提交后直接删除而不需要进行purge操作</p>
 <p>update undo log是update或delete操作中产生的undo log,因为会对已经存在的记录产生影响,为了提供mvcc机制，因此update undo log不能在事务提交时就进行删除,而是将事务提交时放到入history list上，等待purge线程进行最后的删除操作</p>
@@ -483,7 +483,7 @@
 <blockquote>
 <p>值得注意的是innodb对于update的处理其实是分两步处理的，1）将原聚集索引记录标记为已经删除 2）插入一条新记录，所以purge操作只需要针对delete flag为1的记录即可</p>
 </blockquote>
-<h3 id="history-list"><a href="#history-list" class="headerlink" title="history list"></a>history list</h3><p>history list根据事务提交的顺序将undo log进行链接，先提交的事务总是在history list的尾部，同一undo page中的undo log也总是按照顺序排列的<br><img src="http://onoad5uf7.bkt.clouddn.com/undolog_history_list.png" alt="清理过程"></p>
+<h3 id="history-list"><a href="#history-list" class="headerlink" title="history list"></a>history list</h3><p>history list根据事务提交的顺序将undo log进行链接，先提交的事务总是在history list的尾部，同一undo page中的undo log也总是按照顺序排列的<br><img src="http://file.sunwaiting.com/undolog_history_list.png" alt="清理过程"></p>
 <p>具体清理过程为InnoDB会默认从history list中找到第一个需要被清理的数据tx1,清理成功之后清理线程会继续在<strong>tx1所在页中</strong>继续查找需要被清理的undo log (即tx3,<strong>注意这里并不会从history list继续查找tx2</strong>),之后继续向后查找，找到tx5,此时发现tx5被其它事务引用不能清理(trx no比当前purge到的位置更大)，所以再次去history list中查找尾部记录，此时为tx2,重复以上步骤。</p>
 <hr>
 <p>参考文档：</p>
@@ -647,7 +647,7 @@
                 
                   <a href="/archives/">
                 
-                    <span class="site-state-item-count">17</span>
+                    <span class="site-state-item-count">18</span>
                     <span class="site-state-item-name">日志</span>
                   </a>
                 </div>
@@ -809,7 +809,7 @@
 
     <footer id="footer" class="footer">
       <div class="footer-inner">
-        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2018</span>
+        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2019</span>
   <span class="with-love" id="animate">
     <i class="fa fa-user"></i>
   </span>

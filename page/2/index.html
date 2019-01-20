@@ -292,6 +292,191 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/04/13/InnoDB中的锁/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="孙成">
+      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="孙成酱子说">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2018/04/13/InnoDB中的锁/" itemprop="url">
+                  InnoDB中的锁
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-04-13 14:07:46 / 修改时间：17:48:35" itemprop="dateCreated datePublished" datetime="2018-04-13T14:07:46+08:00">2018-04-13</time>
+            
+
+            
+              
+
+              
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
+
+                
+                
+                  ，
+                
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/数据库/" itemprop="url" rel="index"><span itemprop="name">数据库</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+          
+共享(S)和独占(X)锁
+意向锁
+记录锁(Record Locks)
+间隙锁
+Next-key锁
+插入意向锁
+AUTO-INC锁
+
+共享(S)和独占(X)锁共享锁和独占锁都是标准的行级锁，
+
+共享锁允许持有锁的事务进行读操作
+独占锁允许持有锁的事务进行惊醒更新或删除操作
+
+意向锁InnoDB支持多
+          ...
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/2018/04/13/InnoDB中的锁/#more" rel="contents">
+              阅读全文 &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/04/12/InnoDB一致性非锁定读/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1138,7 +1323,7 @@ MySQL技术内幕：InnoDB存储引擎
           
             <div class="post-gallery-row">
               <a class="post-gallery-img fancybox"
-                 href="http://upload-images.jianshu.io/upload_images/143039-6e24d206a6dfd9ce.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" rel="gallery_cjm4egocs0005p8jevc6jmy4f"
+                 href="http://upload-images.jianshu.io/upload_images/143039-6e24d206a6dfd9ce.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" rel="gallery_cjr1rr3dr00010a3ahous63kh"
                  itemscope itemtype="http://schema.org/ImageObject" itemprop="url">
                 <img src="http://upload-images.jianshu.io/upload_images/143039-6e24d206a6dfd9ce.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" itemprop="contentUrl"/>
               </a>
@@ -1159,6 +1344,208 @@ JAVA中CAS的实现JAVA中的cas主要使用的是Unsafe方法，Unsafe的CAS操
           <!--noindex-->
           <div class="post-button text-center">
             <a class="btn" href="/2018/02/03/JAVA中CAS-ABA的问题解决方案AtomicStampedReference/#more" rel="contents">
+              阅读全文 &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/02/03/狄克斯特拉算法/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="孙成">
+      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="孙成酱子说">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2018/02/03/狄克斯特拉算法/" itemprop="url">
+                  狄克斯特拉算法
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-02-03 18:48:17" itemprop="dateCreated datePublished" datetime="2018-02-03T18:48:17+08:00">2018-02-03</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-01-20 14:53:20" itemprop="dateModified" datetime="2019-01-20T14:53:20+08:00">2019-01-20</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
+
+                
+                
+                  ，
+                
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/算法/" itemprop="url" rel="index"><span itemprop="name">算法</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+        <div class="post-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+          
+          
+            <div class="post-gallery-row">
+              <a class="post-gallery-img fancybox"
+                 href="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1530186261567&di=046376a98683ace710703c41b05be163&imgtype=0&src=http%3A%2F%2Fg.hiphotos.baidu.com%2Fbaike%2Fpic%2Fitem%2F6f061d950a7b0208ad9a46b862d9f2d3572cc81c.jpg" rel="gallery_cjr1rr3ew000y0a3ac0txc1qe"
+                 itemscope itemtype="http://schema.org/ImageObject" itemprop="url">
+                <img src="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1530186261567&di=046376a98683ace710703c41b05be163&imgtype=0&src=http%3A%2F%2Fg.hiphotos.baidu.com%2Fbaike%2Fpic%2Fitem%2F6f061d950a7b0208ad9a46b862d9f2d3572cc81c.jpg" itemprop="contentUrl"/>
+              </a>
+            
+          
+
+          
+          </div>
+        </div>
+      
+
+      
+        
+          
+          简介狄克斯特拉算法由荷兰计算机科学家艾兹赫尔·狄克斯特拉在1956年提出是一个解决的是有向图中最短路径问题，在狄克斯特拉算法中，给每段都分配了一个权重，狄克斯特拉算法找出总权重最小的路径
+狄克斯特拉算法的使用思考下图是一个加权团，数字代表权重
+
+为了方便理解我们可以把A点看成是家，F点看成是公司，
+          ...
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/2018/02/03/狄克斯特拉算法/#more" rel="contents">
               阅读全文 &raquo;
             </a>
           </div>
@@ -1375,208 +1762,6 @@ JAVA中CAS的实现JAVA中的cas主要使用的是Unsafe方法，Unsafe的CAS操
 
 
     
-      
-
-  
-
-  
-  
-  
-
-  
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://blog.sunwaiting.com/2018/02/03/狄克斯特拉算法/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="孙成">
-      <meta itemprop="description" content="孙成的杂书馆，聊聊技术，谈谈生活">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="孙成酱子说">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h2 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2018/02/03/狄克斯特拉算法/" itemprop="url">
-                  狄克斯特拉算法
-                </a>
-              
-            
-          </h2>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-
-            
-            
-            
-
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">发表于</span>
-              
-
-              
-                
-              
-
-              <time title="创建时间：2018-02-03 18:48:17" itemprop="dateCreated datePublished" datetime="2018-02-03T18:48:17+08:00">2018-02-03</time>
-            
-
-            
-              
-
-              
-                
-                <span class="post-meta-divider">|</span>
-                
-
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                
-                  <span class="post-meta-item-text">更新于</span>
-                
-                <time title="修改时间：2018-06-28 16:56:38" itemprop="dateModified" datetime="2018-06-28T16:56:38+08:00">2018-06-28</time>
-              
-            
-          </span>
-
-          
-            <span class="post-category" >
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/" itemprop="url" rel="index"><span itemprop="name">技术</span></a></span>
-
-                
-                
-                  ，
-                
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/技术/算法/" itemprop="url" rel="index"><span itemprop="name">算法</span></a></span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-        <div class="post-gallery" itemscope itemtype="http://schema.org/ImageGallery">
-          
-          
-            <div class="post-gallery-row">
-              <a class="post-gallery-img fancybox"
-                 href="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1530186261567&di=046376a98683ace710703c41b05be163&imgtype=0&src=http%3A%2F%2Fg.hiphotos.baidu.com%2Fbaike%2Fpic%2Fitem%2F6f061d950a7b0208ad9a46b862d9f2d3572cc81c.jpg" rel="gallery_cjm4egodc000sp8je2sf0i8hh"
-                 itemscope itemtype="http://schema.org/ImageObject" itemprop="url">
-                <img src="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1530186261567&di=046376a98683ace710703c41b05be163&imgtype=0&src=http%3A%2F%2Fg.hiphotos.baidu.com%2Fbaike%2Fpic%2Fitem%2F6f061d950a7b0208ad9a46b862d9f2d3572cc81c.jpg" itemprop="contentUrl"/>
-              </a>
-            
-          
-
-          
-          </div>
-        </div>
-      
-
-      
-        
-          
-          简介狄克斯特拉算法由荷兰计算机科学家艾兹赫尔·狄克斯特拉在1956年提出是一个解决的是有向图中最短路径问题，在狄克斯特拉算法中，给每段都分配了一个权重，狄克斯特拉算法找出总权重最小的路径
-狄克斯特拉算法的使用思考下图是一个加权团，数字代表权重
-
-为了方便理解我们可以把A点看成是家，F点看成是公司，
-          ...
-          <!--noindex-->
-          <div class="post-button text-center">
-            <a class="btn" href="/2018/02/03/狄克斯特拉算法/#more" rel="contents">
-              阅读全文 &raquo;
-            </a>
-          </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
   </section>
 
   
@@ -1624,7 +1809,7 @@ JAVA中CAS的实现JAVA中的cas主要使用的是Unsafe方法，Unsafe的CAS操
                 
                   <a href="/archives/">
                 
-                    <span class="site-state-item-count">17</span>
+                    <span class="site-state-item-count">18</span>
                     <span class="site-state-item-name">日志</span>
                   </a>
                 </div>
@@ -1770,7 +1955,7 @@ JAVA中CAS的实现JAVA中的cas主要使用的是Unsafe方法，Unsafe的CAS操
 
     <footer id="footer" class="footer">
       <div class="footer-inner">
-        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2018</span>
+        <div class="copyright">&copy; 2017 – <span itemprop="copyrightYear">2019</span>
   <span class="with-love" id="animate">
     <i class="fa fa-user"></i>
   </span>
